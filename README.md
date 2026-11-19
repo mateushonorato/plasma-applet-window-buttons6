@@ -12,7 +12,9 @@ for bug reports and feature requests.
 This fork keeps the same Plasma applet id (`org.kde.windowbuttons`) so it can
 replace the upstream package without rebuilding existing panels, but changes the
 window selection semantics to fit global-menu/top-panel setups where the panel
-acts as the titlebar for any borderless window.
+acts as the titlebar for any borderless window. It also adds a window class filter
+to avoid duplicate controls on applications that draw their own client-side
+decorations (CSD), such as Spotify, Discord, or Steam.
 
 ## Fixed problem
 
@@ -71,6 +73,13 @@ Changes:
 - Decoration buttons are recreated when the represented target window changes,
   which keeps Breeze's internal maximize/restore `checked` state synchronized
   even when both the old and new targets are maximized.
+- A window class ignore filter in Behavior settings excludes applications from
+  the applet (matching exact class names, regular expressions `/.../`, or `$blank`).
+  When an ignored window is maximized on top, panel controls automatically hide
+  to avoid duplicate buttons over CSD windows.
+- In General settings, a "Current" decoration option allows the applet to follow
+  the system window decoration dynamically, and Aurorae theme engine detection
+  is updated for Plasma 6 (`org.kde.kwin.aurorae.v2`).
 
 The goal is not to make a generic fork with every possible policy knob. It is to
 provide predictable defaults for a Plasma setup where maximized windows are
