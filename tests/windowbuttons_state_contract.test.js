@@ -1,48 +1,15 @@
 #!/usr/bin/env node
 'use strict';
 
+/*
+ * SPDX-FileCopyrightText: 2024 Christian Tallner <chrtall@gmx.de>
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
 /**
- * ============================================================================
- * Window Buttons Applet (Plasma 6 / KDecoration3) - State Contract Test Suite
- * ============================================================================
- *
- * This test suite validates the architectural contracts, state machines,
- * configuration bindings, and regression invariants of this maintained fork
- * of `applet-window-buttons6`.
- *
- * ----------------------------------------------------------------------------
- * Core Fork Architecture & Mental Model:
- * ----------------------------------------------------------------------------
- * Upstream `applet-window-buttons6` tied visibility and button actions to the
- * active / last-active window. That model breaks in top-panel workflows:
- *
- *   1. A maximized, borderless window (e.g. Dolphin) is visually represented
- *      by the top panel acting as its titlebar.
- *   2. A small floating dialog, helper, terminal, or picker gets focus above it.
- *   3. The panel still visually looks like the maximized window's titlebar.
- *   4. Clicking panel buttons in upstream would unexpectedly close or minimize
- *      the focused helper rather than the maximized window behind it!
- *
- * This fork resolves that fundamental flaw by establishing clear invariants:
- *   - Panel buttons target the maximized window on the current screen.
- *   - When a focused floating window is above a maximized target, panel buttons
- *     dim (`dimsInactiveWindowActions: true`, opacity 0.62) to indicate the
- *     target is inactive, but remain operational on the maximized target.
- *   - When focus moves outside Plasma's task model (e.g., Yakuake, KRunner),
- *     buttons become disabled and non-clickable (`blocksInactiveWindowActions`).
- *   - When an ignored window is maximized on top, panel buttons hide completely
- *     (`targetTaskItem = null`) so inactive controls do not bleed through.
- *   - When an ignored server-side decorated (SSD) window maximizes under KWin's
- *     Borderless Maximized Windows mode, its native titlebar is automatically
- *     preserved via `tasksModel.requestToggleNoBorder()`.
- *
- * ----------------------------------------------------------------------------
- * Test Execution:
- * ----------------------------------------------------------------------------
- * Run directly with Deno or Node.js:
- *   deno run --unstable-detect-cjs --allow-read tests/windowbuttons_state_contract.test.js
- *   node tests/windowbuttons_state_contract.test.js
- * ============================================================================
+ * State contract and regression test suite for applet-window-buttons.
+ * Validates QML/KConfig bindings, target resolution, and titlebar state machines.
  */
 
 const assert = require('node:assert/strict');
@@ -57,19 +24,12 @@ const configGeneralQml = fs.readFileSync(path.join(repoRoot, 'package/contents/u
 const configBehaviorQml = fs.readFileSync(path.join(repoRoot, 'package/contents/ui/config/ConfigBehavior.qml'), 'utf8');
 const toolsJsSrc = fs.readFileSync(path.join(repoRoot, 'package/contents/code/tools.js'), 'utf8');
 
-// ============================================================================
-// SECTION 1: STATIC QML & KCONFIG SCHEMA CONTRACTS
-// ============================================================================
-// Validates that all declarative QML properties, signal handlers, and KConfig
-// XML schema entries remain properly bound. A broken alias causes silent KCM
-// load/save failures in KDE System Settings.
-
-console.log('-> Testing Section 1: Static QML & KConfig Schema Contracts...');
+// --- Section 1: Static QML & KConfig Schema Contracts ---
 
 // 1.1 Complete KConfig XML to KCM Alias Verification
-// Every user-configurable setting defined in main.xml must have an identical
+// Every user-configurable setting defined in main.xml must have a corresponding
 // `property alias cfg_<name>` in either ConfigGeneral.qml or ConfigBehavior.qml.
-// `formFactor` is internal to the applet (managed via plasmoid.formFactor).
+// `formFactor` is managed internally via plasmoid.formFactor.
 const configEntries = [...configXml.matchAll(/<entry name="([^"]+)" type="([^"]+)">/g)]
   .map(m => ({ name: m[1], type: m[2] }));
 
@@ -77,7 +37,6 @@ assert.ok(configEntries.length >= 20, 'main.xml must define all expected configu
 
 for (const entry of configEntries) {
   if (entry.name === 'formFactor') {
-    // Internal property: formFactor (2=Horizontal, 3=Vertical)
     assert.match(
       mainQml,
       /Plasmoid\.onFormFactorChanged:\s*plasmoid\.configuration\.formFactor\s*=\s*plasmoid\.formFactor/,
@@ -135,7 +94,7 @@ assert.match(
 );
 
 // Cross-screen focus: when a window on another screen gets focus, the local screen's
-// target must remain valid and must NOT trigger focusOutsideTaskModel.
+// target must remain valid and must not trigger focusOutsideTaskModel.
 function getBoolPropertyExpression(source, name) {
   const match = source.match(new RegExp(`readonly property bool ${name}:\\s*([^\\n]+)`));
   assert.ok(match, `missing readonly property bool ${name}`);
@@ -190,15 +149,7 @@ assert.match(
   'perScreenLocalContext must equal root.perScreenActive && root.existsWindowShown'
 );
 
-
-// ============================================================================
-// SECTION 2: BUTTON MODEL SERIALIZATION & ACTION MAPPING (tools.js)
-// ============================================================================
-// Validates `package/contents/code/tools.js` which serializes the button list,
-// maps button types to window management actions, and handles the separator
-// that differentiates active applet buttons from inactive/palette buttons.
-
-console.log('-> Testing Section 2: Button Serialization & Action Model (tools.js)...');
+// --- Section 2: Button Model Serialization & Action Mapping (tools.js) ---
 
 // Reconstruct the AppletDecoration.Types enum as defined in C++ libappletdecoration/types.h
 const AppletDecoration = {
@@ -222,7 +173,7 @@ const AppletDecoration = {
   }
 };
 
-// Instantiate tools.js functions within our mock AppletDecoration scope
+// Instantiate tools.js functions within mock AppletDecoration scope
 const toolsFactory = new Function(
   'AppletDecoration',
   toolsJsSrc + '; return { addButton, indexOfSplitter, initializeControlButtonsModel };'
@@ -302,27 +253,20 @@ tools.initializeControlButtonsModel(defaultButtonsConfig, configPreparedArray, c
 assert.equal(configListModel.count, 6, 'stopOnSeparator: false must retain all buttons including separator and inactive buttons');
 assert.equal(tools.indexOfSplitter(configListModel), 3, 'indexOfSplitter must return index of Custom separator (3)');
 
-// 2.3 Migration Check: main.qml appends KeepAbove (9) if missing in existing config
+// 2.3 Migration check: main.qml appends KeepAbove (9) if missing in existing configuration
 assert.match(
   mainQml,
   /if \(plasmoid\.configuration\.buttons\.indexOf\("9"\) === -1\)\s*plasmoid\.configuration\.buttons = plasmoid\.configuration\.buttons\.concat\("\|9"\);/,
   'main.qml must automatically append KeepAbove (|9) to legacy configurations'
 );
 
+// --- Section 3: KWin Titlebar Preservation State Machine (checkPreserveBorder) ---
 
-// ============================================================================
-// SECTION 3: KWIN TITLEBAR PRESERVATION STATE MACHINE (checkPreserveBorder)
-// ============================================================================
 // When KWin's "Borderless Maximized Windows" setting is enabled, KWin strips
-// titlebars from ALL maximized windows. For ignored windows (e.g. Zen, Kate,
-// OnlyOffice), this would leave them with no buttons at all!
-// PlasmaTasksModel.qml implements checkPreserveBorder() to automatically call
-// tasksModel.requestToggleNoBorder() ONLY for server-side decorated (SSD)
-// windows that originally had borders when unmaximized. Native CSD windows must
-// NOT have borders injected.
-
-console.log('-> Testing Section 3: Titlebar Preservation State Machine (checkPreserveBorder)...');
-
+// titlebars from all maximized windows. For ignored windows (e.g. Zen, Kate,
+// OnlyOffice), this would leave them without buttons. PlasmaTasksModel.qml
+// implements checkPreserveBorder() to call tasksModel.requestToggleNoBorder()
+// only for server-side decorated (SSD) windows that originally had borders when unmaximized.
 function createMockTaskDelegate({ isIgnored, isMaximized, hasNoBorder, canSetNoBorder }) {
   let toggled = false;
   let wasDecoratedWhenUnmaximized = false;
@@ -345,28 +289,27 @@ function createMockTaskDelegate({ isIgnored, isMaximized, hasNoBorder, canSetNoB
   };
 }
 
-// 3.1 Ignored SSD Window: starts unmaximized with border, then maximizes under KWin borderless mode
+// 3.1 Ignored SSD window: starts unmaximized with border, then maximizes under KWin borderless mode
 const ignoredSsd = createMockTaskDelegate({
   isIgnored: true,
   isMaximized: false,
-  hasNoBorder: false, // Decorated while unmaximized
+  hasNoBorder: false,
   canSetNoBorder: true,
 });
 ignoredSsd.checkPreserveBorder();
 assert.equal(ignoredSsd.wasDecoratedWhenUnmaximized, true, 'SSD window records wasDecoratedWhenUnmaximized');
 assert.equal(ignoredSsd.toggled, false, 'does not toggle while unmaximized');
 
-// Window maximizes, KWin strips border (hasNoBorder becomes true)
 ignoredSsd.isMaximized = true;
 ignoredSsd.hasNoBorder = true;
 ignoredSsd.checkPreserveBorder();
 assert.equal(ignoredSsd.toggled, true, 'automatically requests border restoration for ignored maximized SSD window');
 
-// 3.2 Ignored CSD Window: was borderless even when unmaximized (e.g. Chrome, Firefox CSD)
+// 3.2 Ignored CSD window: was borderless even when unmaximized (e.g. Chrome, Firefox CSD)
 const ignoredCsd = createMockTaskDelegate({
   isIgnored: true,
   isMaximized: false,
-  hasNoBorder: true, // Native CSD has no KWin border
+  hasNoBorder: true,
   canSetNoBorder: true,
 });
 ignoredCsd.checkPreserveBorder();
@@ -375,9 +318,9 @@ assert.equal(ignoredCsd.wasDecoratedWhenUnmaximized, false, 'CSD window does not
 ignoredCsd.isMaximized = true;
 ignoredCsd.hasNoBorder = true;
 ignoredCsd.checkPreserveBorder();
-assert.equal(ignoredCsd.toggled, false, 'native CSD windows must NOT have requestToggleNoBorder called');
+assert.equal(ignoredCsd.toggled, false, 'native CSD windows must not have requestToggleNoBorder called');
 
-// 3.3 Non-ignored Window: applet represents it, native border is stripped as intended
+// 3.3 Non-ignored window: applet represents it, native border is stripped as intended
 const nonIgnoredWindow = createMockTaskDelegate({
   isIgnored: false,
   isMaximized: false,
@@ -390,12 +333,12 @@ nonIgnoredWindow.hasNoBorder = true;
 nonIgnoredWindow.checkPreserveBorder();
 assert.equal(nonIgnoredWindow.toggled, false, 'non-ignored windows never request border restoration');
 
-// 3.4 Permission Guard: canSetNoBorder === false
+// 3.4 Permission guard: canSetNoBorder === false
 const unprivilegedSsd = createMockTaskDelegate({
   isIgnored: true,
   isMaximized: false,
   hasNoBorder: false,
-  canSetNoBorder: false, // Window does not support no-border toggle
+  canSetNoBorder: false,
 });
 unprivilegedSsd.checkPreserveBorder();
 unprivilegedSsd.isMaximized = true;
@@ -403,14 +346,7 @@ unprivilegedSsd.hasNoBorder = true;
 unprivilegedSsd.checkPreserveBorder();
 assert.equal(unprivilegedSsd.toggled, false, 'does not request toggle if canSetNoBorder is false');
 
-
-// ============================================================================
-// SECTION 4: SLIDE ANIMATION TIMING & GEOMETRY DYNAMICS
-// ============================================================================
-// Validates slide animation acceleration curves (0..4 mapped to Qt Easing types)
-// and minimum width/height collapse dynamics across form factors and hidden states.
-
-console.log('-> Testing Section 4: Slide Animation Easing & Geometry Dynamics...');
+// --- Section 4: Slide Animation Easing & Geometry Dynamics ---
 
 function evaluateSlideEasing(acceleration) {
   if (acceleration <= 0) return 'Linear';
@@ -429,7 +365,6 @@ assert.equal(evaluateSlideEasing(4), 'InQuint', 'acceleration 4 maps to InQuint 
 
 // Dimension calculation: Horizontal panel vs Vertical panel
 function calculatePanelMinimumDimension({ formFactor, mustHide, isEmptySpaceEnabled, slideAnimationEnabled, userConfiguring, contentSize }) {
-  // Horizontal form factor = 2, Vertical = 3
   if (formFactor === 2) {
     if (mustHide && !isEmptySpaceEnabled && slideAnimationEnabled && !userConfiguring) {
       return 0; // Collapses horizontally to let neighbouring applets expand
@@ -461,7 +396,7 @@ assert.equal(
   calculatePanelMinimumDimension({
     formFactor: 2,
     mustHide: true,
-    isEmptySpaceEnabled: true, // EmptySpace mode preserves geometry
+    isEmptySpaceEnabled: true,
     slideAnimationEnabled: true,
     userConfiguring: false,
     contentSize: contentWidth,
@@ -476,21 +411,14 @@ assert.equal(
     mustHide: true,
     isEmptySpaceEnabled: false,
     slideAnimationEnabled: true,
-    userConfiguring: true, // Edit mode
+    userConfiguring: true,
     contentSize: contentWidth,
   }),
   contentWidth,
   'Edit mode preserves geometry so applet remains interactable'
 );
 
-
-// ============================================================================
-// SECTION 5: WINDOW CLASS IGNORE PARSER & PATTERN MATCHING
-// ============================================================================
-// Validates newline splitting, trimming, case insensitivity, regex matching,
-// .desktop normalization, $blank matching, and literal semicolon retention.
-
-console.log('-> Testing Section 5: Ignore Filter & Pattern Matching...');
+// --- Section 5: Window Class Ignore Parser & Pattern Matching ---
 
 function parseIgnoredClasses(raw) {
   const lines = (raw || '').split(/\r?\n/);
@@ -546,7 +474,7 @@ assert.deepEqual(
   'parses mixed CRLF/LF, trims whitespace, and ignores empty lines'
 );
 
-// Semicolons must be treated as literal characters, NOT delimiters
+// Semicolons are treated as literal characters, not delimiters
 const semicolonConfig = parseIgnoredClasses('konsole;google-chrome');
 assert.equal(semicolonConfig.length, 1, 'semicolons are treated as literal characters and not split');
 assert.equal(semicolonConfig[0], 'konsole;google-chrome');
@@ -578,14 +506,7 @@ assert.equal(isIgnoredApp(parsed, '', ''), true, '$blank matches empty appId and
 assert.equal(isIgnoredApp(parsed, null, null), true, '$blank handles null/undefined values safely');
 assert.equal(isIgnoredApp(parsed, 'dolphin', ''), false, '$blank does not match non-empty appId');
 
-
-// ============================================================================
-// SECTION 6: CORE TARGET SELECTION & STATE RESOLUTION
-// ============================================================================
-// Validates target task resolution logic, borderless preference order,
-// and titlebar-aware visibility rules.
-
-console.log('-> Testing Section 6: Target Selection & Titlebar State Resolution...');
+// --- Section 6: Core Target Selection & State Resolution ---
 
 function bestTask(tasks, predicate) {
   return tasks.filter(task => !task.isMinimized && predicate(task)).sort((a, b) =>
@@ -641,7 +562,7 @@ assert.equal(desiredMustHide({ alwaysVisible: true, editMode: false, target: tit
 assert.equal(desiredMustHide({ alwaysVisible: false, editMode: true, target: titledMaximized }), false,
   'edit mode explicitly overrides titlebar-aware hiding');
 
-// Immediate titlebar toggle transitions (e.g. user presses Meta+B to toggle window decoration)
+// Immediate titlebar toggle transitions (e.g. user toggles window border via shortcut)
 const titlebarToggleTarget = { ...borderlessMaximized };
 assert.equal(desiredMustHide({ alwaysVisible: false, editMode: false, target: titlebarToggleTarget }), false,
   'maximized target starts visible while borderless');
@@ -652,14 +573,7 @@ titlebarToggleTarget.hasNoBorder = true;
 assert.equal(desiredMustHide({ alwaysVisible: false, editMode: false, target: titlebarToggleTarget }), false,
   'disabling the native titlebar immediately flips the same target back to visible');
 
-
-// ============================================================================
-// SECTION 7: INACTIVE STATE, DIMMING & PER-SCREEN FOCUS
-// ============================================================================
-// Validates visual appearance: bright vs dimmed (0.62 opacity) vs gray/disabled,
-// cross-screen focus behavior, and out-of-task-model blocking.
-
-console.log('-> Testing Section 7: Inactive State, Dimming & Per-Screen Focus...');
+// --- Section 7: Inactive State, Dimming & Per-Screen Focus ---
 
 function desiredState({ inactiveStateEnabled, perScreenActive, hasTrackedWindow, hasActiveTask, hasTargetTaskItem, existsWindowShown, targetObscuredByTrackedWindow }) {
   const focusOutsideTaskModel = hasTrackedWindow && !hasActiveTask && !hasTargetTaskItem;
@@ -741,27 +655,7 @@ assert.deepEqual(desiredState({
   buttonIsGray: true,
 }, 'perScreenActive off: target becomes inactive gray when focus is elsewhere');
 
-
-// ============================================================================
-// SECTION 8: EXHAUSTIVE 4×5 VISIBILITY & OCCLUSION TRUTH TABLE
-// ============================================================================
-// Simulates all 4 visibility modes against 5 multi-window configurations:
-//
-// Visibility Modes:
-//   1. AlwaysVisible
-//   2. ActiveWindow ("Active window is present")
-//   3. MaximizedWindowExists ("Maximized window is shown", incl. ActiveMaximizedWindow alias)
-//   4. ShownWindowExists ("At least one window is shown")
-//
-// Window Configurations:
-//   A. Single normal maximized window (Dolphin, borderless)
-//   B. Single normal floating window (Alacritty, borderless)
-//   C. Floating ignored helper (Konsole) over normal maximized window (Dolphin)
-//   D. Ignored window maximized on top (Zen / Konsole-max)
-//   E. Only ignored window present
-// ============================================================================
-
-console.log('-> Testing Section 8: Exhaustive 4x5 Visibility & Occlusion Truth Table...');
+// --- Section 8: Exhaustive 4x5 Visibility & Occlusion Truth Table ---
 
 function simulateWindowState(tasks, visibility, alwaysVisible = false) {
   const topMax = bestTask(tasks, task => task.isMaximized);
@@ -812,7 +706,6 @@ function simulateWindowState(tasks, visibility, alwaysVisible = false) {
   return { target, mustHide, isButtonsDisabled, targetObscured };
 }
 
-// Window definitions for the 5 scenarios
 const dolphinMaximized = {
   id: 'dolphin', appId: 'org.kde.dolphin',
   isMaximized: true, isMinimized: false, hasNoBorder: true, isActive: true,
@@ -837,7 +730,7 @@ const konsoleMaximizedIgnored = {
   lastActivated: 30, stackingOrder: 30, isIgnored: true,
 };
 
-// --- Scenario A: Single normal maximized window (Dolphin) ---
+// Scenario A: Single normal maximized window (Dolphin)
 {
   const tasks = [{ ...dolphinMaximized, isActive: true }];
 
@@ -854,7 +747,7 @@ const konsoleMaximizedIgnored = {
   assert.equal(sShown.mustHide, false); assert.equal(sShown.target.id, 'dolphin');
 }
 
-// --- Scenario B: Single normal floating window (Alacritty) ---
+// Scenario B: Single normal floating window (Alacritty)
 {
   const tasks = [{ ...alacrittyFloating, isActive: true }];
 
@@ -864,7 +757,6 @@ const konsoleMaximizedIgnored = {
   const sActive = simulateWindowState(tasks, 'ActiveWindow');
   assert.equal(sActive.mustHide, false); assert.equal(sActive.target.id, 'alacritty');
 
-  // In MaximizedWindowExists mode, floating-only window hides buttons
   const sMax = simulateWindowState(tasks, 'MaximizedWindowExists');
   assert.equal(sMax.mustHide, true, 'MaximizedWindowExists hides when no maximized window exists');
 
@@ -872,7 +764,7 @@ const konsoleMaximizedIgnored = {
   assert.equal(sShown.mustHide, false); assert.equal(sShown.target.id, 'alacritty');
 }
 
-// --- Scenario C: Floating ignored helper (Konsole) over normal maximized window (Dolphin) ---
+// Scenario C: Floating ignored helper (Konsole) over normal maximized window (Dolphin)
 {
   const tasks = [
     { ...dolphinMaximized, isActive: false },
@@ -898,14 +790,13 @@ const konsoleMaximizedIgnored = {
   assert.equal(sShown.targetObscured, true);
 }
 
-// --- Scenario D: Ignored window maximized on top (Konsole-max over Dolphin) ---
+// Scenario D: Ignored window maximized on top (Konsole-max over Dolphin)
 {
   const tasks = [
     { ...dolphinMaximized, isActive: false },
     { ...konsoleMaximizedIgnored, isActive: true },
   ];
 
-  // Topmost maximized occlusion: panel buttons must hide / disable so ghost buttons do not show
   const sAlways = simulateWindowState(tasks, 'AlwaysVisible', true);
   assert.equal(sAlways.mustHide, false, 'AlwaysVisible stays visible');
   assert.equal(sAlways.isButtonsDisabled, true, 'AlwaysVisible buttons are disabled when top maximized window is ignored');
@@ -920,7 +811,7 @@ const konsoleMaximizedIgnored = {
   assert.equal(sShown.mustHide, true, 'ShownWindowExists hides when ignored window is maximized on top');
 }
 
-// --- Scenario E: Only ignored window present ---
+// Scenario E: Only ignored window present
 {
   const tasks = [{ ...konsoleFloatingIgnored, isActive: true }];
 
@@ -938,6 +829,4 @@ const konsoleMaximizedIgnored = {
   assert.equal(sShown.mustHide, true);
 }
 
-console.log('============================================================================');
-console.log('All windowbuttons state contracts, models, and invariants verified successfully!');
-console.log('============================================================================');
+console.log('windowbuttons state contract ok');
