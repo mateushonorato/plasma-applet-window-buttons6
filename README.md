@@ -14,7 +14,7 @@ replace the upstream package without rebuilding existing panels, but changes the
 window selection semantics to fit global-menu/top-panel setups where the panel
 acts as the titlebar for any borderless window. It also adds a window class filter
 to avoid duplicate controls on applications that draw their own client-side
-decorations (CSD), such as Spotify, Discord, or Steam.
+decorations (CSD), such as ONLYOFFICE or Steam.
 
 ## Fixed problem
 
