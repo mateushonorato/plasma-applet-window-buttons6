@@ -26,6 +26,9 @@ PlasmoidItem {
         if (visibility === AppletDecoration.Types.AlwaysVisible || inEditMode)
             return false;
 
+        if (visibility === AppletDecoration.Types.ActiveWindow && !existsWindowActive)
+            return true;
+
         if (!lastActiveTaskItem || !existsWindowShown || !isLastActiveWindowBorderless)
             return true;
 
@@ -142,7 +145,7 @@ PlasmoidItem {
     }
 
     function performActiveWindowAction(windowOperation) {
-        if (blocksInactiveWindowActions)
+        if (blocksInactiveWindowActions || !lastActiveTaskItem)
             return ;
 
         if (windowOperation === AppletDecoration.Types.ActionClose)
@@ -342,7 +345,7 @@ PlasmoidItem {
                 // Per-screen: when perScreenActive is on and a local window is shown,
                 // keep buttons bright even if global focus moved to another screen.
                 var perScreenLocalContext = root.perScreenActive && root.existsWindowShown;
-                if (root.blocksInactiveWindowActions || (!perScreenLocalContext && root.inactiveStateEnabled && root.existsWindowShown && !root.isLastActiveWindowActive && !root.dimsInactiveWindowActions))
+                if (!root.lastActiveTaskItem || root.blocksInactiveWindowActions || (!perScreenLocalContext && root.inactiveStateEnabled && root.existsWindowShown && !root.isLastActiveWindowActive && !root.dimsInactiveWindowActions))
                     return false;
 
                 return true;
@@ -352,7 +355,7 @@ PlasmoidItem {
             isKeepAbove: root.isLastActiveWindowKeepAbove
             localX: x
             localY: y
-            enabled: !root.blocksInactiveWindowActions
+            enabled: !root.blocksInactiveWindowActions && root.lastActiveTaskItem !== null
             opacity: isVisible ? (root.dimsInactiveWindowActions ? root.inactiveDimOpacity : 1) : 0
             visible: (isVisible && !root.isEmptySpaceEnabled) || root.isEmptySpaceEnabled
             onClicked: {
@@ -415,7 +418,7 @@ PlasmoidItem {
                 // Per-screen: when perScreenActive is on and a local window is shown,
                 // keep buttons bright even if global focus moved to another screen.
                 var perScreenLocalContext = root.perScreenActive && root.existsWindowShown;
-                if (root.blocksInactiveWindowActions || (!perScreenLocalContext && root.inactiveStateEnabled && root.existsWindowShown && !root.isLastActiveWindowActive && !root.dimsInactiveWindowActions))
+                if (!root.lastActiveTaskItem || root.blocksInactiveWindowActions || (!perScreenLocalContext && root.inactiveStateEnabled && root.existsWindowShown && !root.isLastActiveWindowActive && !root.dimsInactiveWindowActions))
                     return false;
 
                 return true;
@@ -427,7 +430,7 @@ PlasmoidItem {
             auroraeTheme: auroraeThemeEngine
             monochromeIconsEnabled: auroraeThemeEngine.hasMonochromeIcons
             monochromeIconsColor: "transparent"
-            enabled: !root.blocksInactiveWindowActions
+            enabled: !root.blocksInactiveWindowActions && root.lastActiveTaskItem !== null
             opacity: isVisible ? (root.dimsInactiveWindowActions ? root.inactiveDimOpacity : 1) : 0
             visible: (isVisible && !root.isEmptySpaceEnabled) || root.isEmptySpaceEnabled
             onClicked: {

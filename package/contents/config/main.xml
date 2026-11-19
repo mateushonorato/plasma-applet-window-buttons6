@@ -48,6 +48,10 @@ SPDX-License-Identifier: GPL-2.0-or-later
       <default>false</default>
       <label>Per-screen active window</label>
     </entry>
+    <entry name="ignoredWindowClasses" type="String">
+      <default></default>
+      <label>Newline-separated list of window class patterns to ignore</label>
+    </entry>
     <entry name="hiddenState" type="Enum">
       <choices>
         <choice name="SlideOut" />
