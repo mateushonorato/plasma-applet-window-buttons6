@@ -64,6 +64,12 @@ assert.match(
 
 assert.match(
   tasksQml,
+  /function isBetterTask\(task, currentBest\)/,
+  'PlasmaTasksModel.qml must implement isBetterTask(task, currentBest) for unified priority comparison'
+);
+
+assert.match(
+  tasksQml,
   /function topmostMaximizedTaskItem\(\)/,
   'PlasmaTasksModel.qml must implement topmostMaximizedTaskItem() for occlusion detection'
 );
@@ -508,9 +514,25 @@ assert.equal(isIgnoredApp(parsed, 'dolphin', ''), false, '$blank does not match 
 
 // --- Section 6: Core Target Selection & State Resolution ---
 
+function isBetterTask(task, currentBest) {
+  if (!currentBest) return true;
+  if (task.isActive && !currentBest.isActive) return true;
+  if (!task.isActive && currentBest.isActive) return false;
+  if (task.isKeepAbove && !currentBest.isKeepAbove) return true;
+  if (!task.isKeepAbove && currentBest.isKeepAbove) return false;
+  if (task.lastActivated !== currentBest.lastActivated)
+    return task.lastActivated > currentBest.lastActivated;
+  return task.stackingOrder > currentBest.stackingOrder;
+}
+
 function bestTask(tasks, predicate) {
-  return tasks.filter(task => !task.isMinimized && predicate(task)).sort((a, b) =>
-    b.lastActivated - a.lastActivated || b.stackingOrder - a.stackingOrder)[0] || null;
+  let best = null;
+  for (const t of tasks) {
+    if (!t.isMinimized && predicate(t)) {
+      if (isBetterTask(t, best)) best = t;
+    }
+  }
+  return best;
 }
 
 function desiredTarget(tasks) {
@@ -827,6 +849,31 @@ const konsoleMaximizedIgnored = {
 
   const sShown = simulateWindowState(tasks, 'ShownWindowExists');
   assert.equal(sShown.mustHide, true);
+}
+
+// Scenario F: Switch focus back to normal maximized window (Dolphin) over background maximized ignored window (Konsole-max)
+{
+  const tasks = [
+    { ...dolphinMaximized, isActive: true },
+    { ...konsoleMaximizedIgnored, isActive: false, lastActivated: 9999, stackingOrder: 99 },
+  ];
+
+  const sAlways = simulateWindowState(tasks, 'AlwaysVisible', true);
+  assert.equal(sAlways.mustHide, false);
+  assert.equal(sAlways.target.id, 'dolphin');
+  assert.equal(sAlways.isButtonsDisabled, false);
+
+  const sActive = simulateWindowState(tasks, 'ActiveWindow');
+  assert.equal(sActive.mustHide, false, 'ActiveWindow shows buttons when active window is normal SSD maximized window');
+  assert.equal(sActive.target.id, 'dolphin');
+
+  const sMax = simulateWindowState(tasks, 'MaximizedWindowExists');
+  assert.equal(sMax.mustHide, false, 'MaximizedWindowExists shows buttons for active normal maximized window');
+  assert.equal(sMax.target.id, 'dolphin');
+
+  const sShown = simulateWindowState(tasks, 'ShownWindowExists');
+  assert.equal(sShown.mustHide, false);
+  assert.equal(sShown.target.id, 'dolphin');
 }
 
 console.log('windowbuttons state contract ok');
