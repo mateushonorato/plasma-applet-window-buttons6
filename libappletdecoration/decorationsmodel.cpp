@@ -163,6 +163,12 @@ void DecorationsModel::init()
             }
 
             const auto themeProvider = KPluginFactory::instantiatePlugin<KDecoration3::DecorationThemeProvider>(info).plugin;
+            if (!themeProvider)
+            {
+                qCWarning(decorations_model) << "Failed to instantiate theme provider for" << info.pluginId();
+                continue;
+            }
+
             for (const auto &t : themeProvider->themes())
             {
                 Data data;
