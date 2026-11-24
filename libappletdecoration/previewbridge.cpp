@@ -49,6 +49,11 @@ std::unique_ptr<KDecoration3::DecorationSettingsPrivate> PreviewBridge::settings
     return ptr;
 }
 
+PreviewSettings *PreviewBridge::lastCreatedSettings() const
+{
+    return m_lastCreatedSettings.data();
+}
+
 void PreviewBridge::registerButton(PreviewButtonItem *button)
 {
     m_previewButtons.append(button);
@@ -176,7 +181,7 @@ void PreviewBridge::settingsFileChanged(const QString &filename)
 
 void PreviewBridge::reconfigure()
 {
-    if (m_lastCreatedSettings)
+    if (m_lastCreatedSettings && m_lastCreatedSettings->decorationSettings())
     {
         emit m_lastCreatedSettings->decorationSettings()->reconfigured();
     }

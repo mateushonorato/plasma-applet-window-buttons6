@@ -38,10 +38,7 @@ class PreviewBridge : public KDecoration3::DecorationBridge
     {
         return m_lastCreatedClient;
     }
-    PreviewSettings *lastCreatedSettings()
-    {
-        return m_lastCreatedSettings;
-    }
+    PreviewSettings *lastCreatedSettings() const;
 
     void registerButton(PreviewButtonItem *button);
     void unregisterButton(PreviewButtonItem *button);
@@ -70,7 +67,7 @@ class PreviewBridge : public KDecoration3::DecorationBridge
     void createFactory();
     void setValid(bool valid);
     PreviewClient *m_lastCreatedClient;
-    PreviewSettings *m_lastCreatedSettings;
+    QPointer<PreviewSettings> m_lastCreatedSettings;
     QList<PreviewButtonItem *> m_previewButtons;
     QString m_plugin;
     QString m_theme;
