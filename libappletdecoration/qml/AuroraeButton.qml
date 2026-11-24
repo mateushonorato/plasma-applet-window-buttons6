@@ -37,7 +37,7 @@ MouseArea {
         case AppletDecoration.Types.Minimize:
             return "minimize";
         case AppletDecoration.Types.Maximize:
-            return (auroraeTheme.hasRestoreButton && button.isMaximized ? "restore" : "maximize");
+            return ((auroraeTheme && auroraeTheme.hasRestoreButton && button.isMaximized) ? "restore" : "maximize");
         case AppletDecoration.Types.OnAllDesktops:
             return "alldesktops";
         case AppletDecoration.Types.KeepAbove:
@@ -77,7 +77,7 @@ MouseArea {
 
             x: (parent.width / 2) - (width / 2)
             y: (parent.height / 2) - (height / 2)
-            width: auroraeTheme.buttonRatio * height
+            width: auroraeTheme ? auroraeTheme.buttonRatio * height : height
             height: minimumSide
             svg: buttonSvg
             elementId: svgNormalElementId
@@ -120,7 +120,7 @@ MouseArea {
 
             x: (parent.width / 2) - (width / 2)
             y: (parent.height / 2) - (height / 2)
-            width: auroraeTheme.buttonRatio * height
+            width: auroraeTheme ? auroraeTheme.buttonRatio * height : height
             height: minimumSide
             svg: buttonSvg
             elementId: svgHoveredElementId
