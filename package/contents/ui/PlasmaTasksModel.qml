@@ -83,6 +83,28 @@ Item {
         return false;
     }
 
+    function isBetterTask(task, currentBest) {
+        if (!currentBest)
+            return true;
+
+        if (task.isActive && !currentBest.isActive)
+            return true;
+
+        if (!task.isActive && currentBest.isActive)
+            return false;
+
+        if (task.isKeepAbove && !currentBest.isKeepAbove)
+            return true;
+
+        if (!task.isKeepAbove && currentBest.isKeepAbove)
+            return false;
+
+        if (task.lastActivated !== currentBest.lastActivated)
+            return task.lastActivated > currentBest.lastActivated;
+
+        return task.stackingOrder > currentBest.stackingOrder;
+    }
+
     function bestShownTaskItem() {
         var bestTask = null;
         for (var i = 0; i < tasksRepeater.count; ++i) {
@@ -90,7 +112,7 @@ Item {
             if (!task || task.isMinimized || task.isIgnored)
                 continue;
 
-            if (!bestTask || task.lastActivated > bestTask.lastActivated || (task.lastActivated === bestTask.lastActivated && task.stackingOrder > bestTask.stackingOrder))
+            if (isBetterTask(task, bestTask))
                 bestTask = task;
 
         }
@@ -104,7 +126,7 @@ Item {
             if (!task || !task.isMaximized || task.isMinimized || task.isIgnored)
                 continue;
 
-            if (!bestTask || task.lastActivated > bestTask.lastActivated || (task.lastActivated === bestTask.lastActivated && task.stackingOrder > bestTask.stackingOrder))
+            if (isBetterTask(task, bestTask))
                 bestTask = task;
 
         }
@@ -118,7 +140,7 @@ Item {
             if (!task || !task.hasNoBorder || task.isMinimized || task.isIgnored || (maximizedOnly && !task.isMaximized))
                 continue;
 
-            if (!bestTask || task.lastActivated > bestTask.lastActivated || (task.lastActivated === bestTask.lastActivated && task.stackingOrder > bestTask.stackingOrder))
+            if (isBetterTask(task, bestTask))
                 bestTask = task;
 
         }
@@ -132,7 +154,7 @@ Item {
             if (!task || !task.isMaximized || task.isMinimized)
                 continue;
 
-            if (!bestTask || task.lastActivated > bestTask.lastActivated || (task.lastActivated === bestTask.lastActivated && task.stackingOrder > bestTask.stackingOrder))
+            if (isBetterTask(task, bestTask))
                 bestTask = task;
 
         }
@@ -284,7 +306,20 @@ Item {
                 readonly property bool isMinimizable: IsMinimizable === true ? true : false
                 readonly property bool isMaximizable: IsMaximizable === true ? true : false
                 readonly property bool isVirtualDesktopsChangeable: IsVirtualDesktopsChangeable === true ? true : false
-                readonly property double lastActivated: LastActivated ? LastActivated : 0
+                readonly property double lastActivated: {
+                    var la = LastActivated;
+                    if (!la)
+                        return 0;
+
+                    if (la instanceof Date)
+                        return la.getTime();
+
+                    if (typeof la.getTime === "function")
+                        return la.getTime();
+
+                    var n = Number(la);
+                    return isNaN(n) ? 0 : n;
+                }
                 readonly property int stackingOrder: StackingOrder ? StackingOrder : 0
 
                 function checkPreserveBorder() {
