@@ -27,42 +27,59 @@ SchemesModel::~SchemesModel()
 
 QVariant SchemesModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.column() != 0 || index.row() < 0 || index.row() >= m_schemes.count())
+    if (!index.isValid() || index.column() != 0 || index.row() < 0 || index.row() >= (m_schemes.count() + 2))
     {
         return QVariant();
     }
 
-    const SchemeColors *d = m_schemes[index.row()];
+    if (index.row() == 0)
+    {
+        switch (role)
+        {
+            case Qt::DisplayRole:
+                return QStringLiteral("Current");
+            case Qt::UserRole + 4:
+                return QStringLiteral("kdeglobals");
+            case Qt::UserRole + 5:
+                return backgroundOf(0);
+            case Qt::UserRole + 6:
+                return QVariant();
+            default:
+                return QVariant();
+        }
+    }
+    else if (index.row() == 1)
+    {
+        switch (role)
+        {
+            case Qt::DisplayRole:
+                return QStringLiteral("Plasma Theme");
+            case Qt::UserRole + 4:
+                return QStringLiteral("_plasmatheme_");
+            case Qt::UserRole + 5:
+                return QColor(Qt::transparent);
+            case Qt::UserRole + 6:
+                return QVariant();
+            default:
+                return QVariant();
+        }
+    }
+
+    const SchemeColors *d = m_schemes[index.row() - 2];
 
     switch (role)
     {
         case Qt::DisplayRole:
-            if (index.row() == 0)
-            {
-                return "Current";
-            }
-            else if (index.row() == 1)
-            {
-                return "Plasma Theme";
-            }
-
             return d->schemeName();
 
         case Qt::UserRole + 4:
-            if (index.row() == 0)
-            {
-                return "kdeglobals";
-            }
-            else if (index.row() == 1)
-            {
-                return "_plasmatheme_";
-            }
-
             return d->schemeFile();
 
-        case Qt::UserRole + 5: return d->backgroundColor();
+        case Qt::UserRole + 5:
+            return d->backgroundColor();
 
-        case Qt::UserRole + 6: return d->textColor();
+        case Qt::UserRole + 6:
+            return d->textColor();
     }
 
     return QVariant();
@@ -75,7 +92,7 @@ int SchemesModel::rowCount(const QModelIndex &parent) const
         return 0;
     }
 
-    return m_schemes.count();
+    return m_schemes.count() + 2;
 }
 
 QHash<int, QByteArray> SchemesModel::roleNames() const
@@ -92,12 +109,12 @@ QColor SchemesModel::backgroundOf(const int &index) const
     if (index == 0)
     {
         auto ind = indexOf(m_defaultSchemeFile);
-        return ind >= 0 ? m_schemes[ind]->backgroundColor() : QColor("transparent");
+        return (ind >= 2 && (ind - 2) < m_schemes.count()) ? m_schemes[ind - 2]->backgroundColor() : QColor("transparent");
     }
 
-    if (index > 0 && index < m_schemes.count())
+    if (index >= 2 && (index - 2) < m_schemes.count())
     {
-        return m_schemes[index]->backgroundColor();
+        return m_schemes[index - 2]->backgroundColor();
     }
 
     return QColor("transparent");
@@ -107,7 +124,7 @@ QString SchemesModel::defaultSchemeFile() const
 {
     auto ind = indexOf(m_defaultSchemeFile);
 
-    return ind >= 0 ? m_schemes[ind]->schemeFile() : QString();
+    return (ind >= 2 && (ind - 2) < m_schemes.count()) ? m_schemes[ind - 2]->schemeFile() : QString();
 }
 
 void SchemesModel::initSchemes()
@@ -186,7 +203,7 @@ int SchemesModel::indexOf(QString file) const
 
         if (s->schemeFile() == file)
         {
-            return i;
+            return i + 2;
         }
     }
 
